@@ -1,0 +1,43 @@
+pipeline {
+    agent any
+    options {
+        skipDefaultCheckout()
+        gitLabConnections(desired_connection)
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Checkout: ${env.gitlabSourceBranch}'
+                script {
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: 'origin/${env.gitlabSourceBranch}']],
+                        doGenerateSubmoduleConfigurations: false,
+                        extensions: [],
+                        submoduleCfg: [],
+                        userRemoteConfigs: [[credentialsId: 'desired_credential', url: 'desired_project_url']]
+                    ])
+                }
+            }
+        }
+        stage('Build') {
+            steps {
+                updateGitlabCommitStatus name: 'Jenkins Build', state: 'pending'
+                sh 'mvn clean install -DskipTests'
+            }
+        }
+        stage('Clear Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+    }
+    post {
+        failure {
+            updateGitlabCommitStatus name: 'Jenkins Build', state: 'failed'
+        }
+        success {
+            updateGitlabCommitStatus name: 'Jenkins Build', state: 'success'
+        }
+    }
+}
